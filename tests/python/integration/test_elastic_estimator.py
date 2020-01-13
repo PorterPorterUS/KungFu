@@ -72,8 +72,11 @@ def main():
 
     classifier.train(input_fn(data.train, 1000),
                      hooks=[
-                         KungFuElasticTrainHook(args.schedule, args.max_step,
-                                                model_dir)
+                         KungFuElasticTrainHook(args.schedule,
+                                                args.max_step,
+                                                model_dir,
+                                                save_final=True,
+                                                check_consensus=True)
                      ],
                      max_steps=args.max_step)
 

@@ -8,14 +8,20 @@ from kungfu.tensorflow.ops import (_get_init_step, consensus, counter,
 
 
 class KungFuElasticTrainHook(tf.train.SessionRunHook):
-    def __init__(self, schedule, max_step, model_dir):
+    def __init__(self,
+                 schedule,
+                 max_step,
+                 model_dir,
+                 save_final=False,
+                 check_consensus=False):
         self._schedule = schedule
         self._max_step = max_step
         self._model_dir = model_dir
         self._need_sync = True
 
         # debug options
-        self._save_final = False
+        self._save_final = save_final
+        self._check_consensus = check_consensus
 
     def _build_resize_op(self, config, init_step):
         step = counter(init_step)
@@ -28,6 +34,8 @@ class KungFuElasticTrainHook(tf.train.SessionRunHook):
         self._kungfu_step = tf.Variable(0, trainable=False, dtype=tf.int64)
         self._advance = tf.assign_add(self._kungfu_step, 1)
         self._sync_op = BroadcastGlobalVariablesOp()
+        if self._check_consensus:
+            self._consensus_ops = [consensus(v) for v in tf.global_variables()]
         ckpt = _get_init_step()
         self._init_kungfu_step = tf.assign(self._kungfu_step, int(ckpt))
         self._resize_op = self._build_resize_op(self._schedule, int(ckpt))
@@ -48,6 +56,16 @@ class KungFuElasticTrainHook(tf.train.SessionRunHook):
         if self._need_sync:
             run_context.session.run(self._sync_op)
             self._need_sync = False
+
+        if self._check_consensus:
+            vs = run_context.session.run(self._consensus_ops)
+            failed = len([v for v in vs if not v])
+            if failed > 0:
+                print('consensus check FAILED: %d variables diverges' %
+                      (failed))
+            else:
+                print('consensus check OK: %d variables are consistent' %
+                      (len(vs)))
 
     def after_run(self, run_context, run_values):
         kungfu_step = run_context.session.run(self._kungfu_step)
