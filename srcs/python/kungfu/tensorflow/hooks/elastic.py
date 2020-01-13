@@ -14,6 +14,9 @@ class KungFuElasticTrainHook(tf.train.SessionRunHook):
         self._model_dir = model_dir
         self._need_sync = True
 
+        # debug options
+        self._save_final = False
+
     def _build_resize_op(self, config, init_step):
         step = counter(init_step)
         new_size = step_based_schedule(config, step)
@@ -67,7 +70,8 @@ class KungFuElasticTrainHook(tf.train.SessionRunHook):
         print('stopped at global_step: %d, kungfu_step: %d' %
               (global_step, kungfu_step))
 
-        self.save(sess, 'final')
+        if self._save_final:
+            self.save(sess, 'final')
 
     def save(self, sess, idx):
         vs = tf.global_variables()
